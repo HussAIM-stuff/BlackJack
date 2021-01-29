@@ -21,6 +21,9 @@ const johnD = {
   'drawn': [],
   'playingArea': '#areaP',
   'scoreArea': '#scoreP',
+  'startTop': 3.5,
+  'startLeft': 1,
+  'nCards': 0
 };
 
 /**
@@ -44,7 +47,10 @@ const dealer = {
   'As': 0,
   'drawn': [],
   'playingArea': '#areaD',
-  'scoreArea': '#scoreD'
+  'scoreArea': '#scoreD',
+  'startTop': 3.5,
+  'startLeft': 1,
+  'nCards': 0
 };
 
 /////////////// GLOBALS ///////////////
@@ -62,8 +68,6 @@ const nCardsTotal = nSuits * nCards;
 const deck = [];
 
 /////////////// FUNCTIONS ///////////////
-
-
 /**
  * @param {number} num a number to convert into a card.
  * @returns {object} a card object. {
@@ -132,21 +136,14 @@ let number2card = (num) => {
  * it checks if the deck isn't complete of if its fully empty before modifying it.
  */
 let initializeDeck = () => {
-  if(deck.length < 52) {
-    if(deck.length > 0) {
+  if(deck.length !== 52) {
+    if(deck.length !== 0) {
       deck.splice(0);
-      console.log('Clearing deck for initialization - initializeDeck()');
     }
     for(let i = 0; i < nCardsTotal; i++) {
       deck.push(number2card(i));
     }
-    console.log(`Initialized deck - ${deck.length} cards added - initializeDeck()`);
   }
-  else {
-    console.log(`Deck not initialized, it already ${deck.length} cards - initializeDeck()`);
-  }
-  if(deck.length !== 52)
-      throw new Error('Deck initialization failed - initializeDeck()');
 };
 
 /**
@@ -158,17 +155,28 @@ let initializeDeck = () => {
  */
 let randomCard = (player) => {
   position = Math.floor(Math.random() * deck.length)
-  console.log(`Random card selected for player "${player.name}": "${deck[position].num} ${deck[position].suit}" - randomcard(${player.name})`);
   card = deck[position];
   player.score += card.value;
-  console.log(`New score for ${player.name}: ${player.score}`);
+
   if(card.num == 'A') {
     player.As++;
   }
-  $(player.playingArea).append(`<img class="card" src="./img/cards/${card.file}" />`);
+
+  while(player.score > 21 && player.As > 0) {
+    player.score -= 10;
+    player.As--;
+  }
+
+  $('<img>').addClass('card').attr('src',`./img/cards/${card.file}`).css('position','absolute').css('top',`${player.startTop.toString()}px`).css('left',`${(player.startLeft + (player.nCards * 20)).toString()}px`).appendTo(player.playingArea);
+  player.nCards++;
   player.drawn.push(deck.splice(position,1)); //removes from deck and adds to drawn
-  $(player.scoreArea).html(`<div>${player.score}</div>`).show();
-  console.log(`"${card.num} ${card.suit}" added to ${player.playingArea} - addcard(${player.name},${card.num} ${card.suit},${position})`)
+
+  if(player.name === 'dealer'){
+    $(dealer.scoreArea).html(`<div>Dealer: <strong style='color:white'>${("0"+dealer.score).slice(-2)}</strong></div>`).show();
+  }
+  else {
+    $(johnD.scoreArea).html(`<div>Player: <strong style='color:white'>${("0"+johnD.score).slice(-2)}</strong></div>`).show();
+  }
 };
 
 /**
@@ -180,22 +188,22 @@ let randomCard = (player) => {
  * calling player(play) after everything is cleared
  */
 let restart = () => {
-  console.log('Restarting game - restart()');
-  console.log('Resetting players - resetPlayers()')
   johnD.score = 0;
   johnD.As = 0;
   johnD.drawn.splice(0);
+  johnD.nCards = 0;
   dealer.score = 0;
   dealer.As = 0;
   dealer.drawn.splice(0);
+  dealer.nCards = 0;
   $('#areaD').html('');
   $('#areaP').html('');
   $('#scoreD').html('');
   $('#scoreP').html('');
   $('#deck').html('');
   $('#results').html('');
-  console.log('Table html elements cleared - clearTable()');
-  playerPlay(0);
+  $('#deck').show();
+  setTimeout('playerPlay(0)',1000);
 };
 
 /**
@@ -206,34 +214,42 @@ let restart = () => {
  * @description Autoplays the dealer and in the end finishes the game
  * if the score is not less than 17, otherwise calls it self with
  */
-let dealerPlay = (opt) => {
-  if(opt === 'BJ'){
-    console.log(`\n${dealer.name} has BlackJack!!! ${dealer.name}'s turn now)`);
-    randomCard(dealer);
-    if(dealer.score === 21 && dealer.drawn.length === 2) {
-      $('#results').html('DOUBLE BLACKJACK<br><span>PUSH GAME</span>');
-      $('#results').show();
-      console.log(`DEALER: ${dealer.score}\nPLAYER: ${johnD.score}\nPUSH GAME - showResults()`);
-    }
-    else {
-      $('#results').html(`PLAYER BLACKJACK<br><span>PLAYER WINS</span>`);
-      $('#results').show();
-      console.log(`DEALER: ${dealer.score}\nPLAYER: ${johnD.score}\n${johnD.name.toUpperCase()} BLACKJACK, PLAYER WINS - showResults()`);
-    }
-    $('#restart').show();
-    $('#deck').hide();
-    $('.name').hide();
-  }
-  else {
-    console.log(`\n${dealer.name} is playing)`);
-    if(dealer.score < 17) {
+let dealerPlay = (num) => {
+  switch(num) {
+    case 0:
       randomCard(dealer);
-      setTimeout('dealerPlay()',1000);
-    }
-    else
-    {
+
+      if(johnD.score < 21) {
+        $('#hit, #stand').show();
+      }
+      else {
+        setTimeout('dealerPlay(1)',1000);
+      }
+      break;
+    case 1:
+      if(johnD.score === 21 && johnD.drawn.length === 2){
+        randomCard(dealer);
+
+        if(dealer.score === 21 && dealer.drawn.length === 2) {
+          $('#results').html('DOUBLE BLACKJACK<br><span>PUSH GAME</span>');
+          $('#results').show();
+        }
+        else {
+          $('#results').html(`PLAYER BLACKJACK<br><span>PLAYER WINS</span>`);
+          $('#results').show();
+        }
+        $('#restart').show();
+        $('#deck').hide();
+        $('.name').hide();
+      }
+      else if(dealer.score < 17) {
+          randomCard(dealer);
+          setTimeout('dealerPlay(1)',1000);
+      }
+      else {
       finishGame();
-    }
+      }
+      break;
   }
 };
 
@@ -245,36 +261,29 @@ let dealerPlay = (opt) => {
  * is handled outside of this function
  */
 let finishGame = () => {
-  console.log('Finishing game - finishGame()');
   if(dealer.score === 21 && dealer.drawn.length === 2) {
-      $('#results').html('DEALER WINS: BLACKJACK');
+      $('#results').html('DEALER WINS: BLACKJACK  :(');
       $('#results').show();
-      console.log(`DEALER: ${dealer.score}\nPLAYER: ${johnD.score}\nDEALER WINS: BLACKJACK - showResults()`);
   }
   else if(dealer.score > 21) {
-    $('#results').html(`PLAYER WINS<br><span>DEALER BUSTS</span>`);
+    $('#results').html('PLAYER WINS<br><span>DEALER BUSTS</span>');
     $('#results').show();
-    console.log(`DEALER: ${dealer.score}\nPLAYER: ${johnD.score}\n${johnD.name.toUpperCase()} WINS - showResults()`);
   }
   else if(dealer.score === johnD.score) {
-    $('#results').html('PUSH GAME.');
+    $('#results').html('PUSH GAME!!!');
     $('#results').show();
-    console.log(`DEALER: ${dealer.score}\nPLAYER: ${johnD.score}\nPUSH GAME - showResults()`);
   }
   else if(dealer.score > johnD.score) {
-      $('#results').html('DEALER WINS.');
+      $('#results').html('DEALER WINS  :(');
       $('#results').show();
-      console.log(`DEALER: ${dealer.score}\nPLAYER: ${johnD.score}\nDEALER WINS - showResults()`);
   }
   else if(dealer.score < johnD.score) {
-    $('#results').html(`PLAYER WINS`);
+    $('#results').html('PLAYER WINS');
     $('#results').show();
-    console.log(`DEALER: ${dealer.score}\nPLAYER: ${johnD.score}\n${johnD.name.toUpperCase()} WINS - showResults()`);
   }
   $('#restart').show();
   $('#deck').hide();
-  $('.name').hide();
-  
+  $('.name').hide(); 
 };
 
 /**
@@ -290,75 +299,54 @@ let finishGame = () => {
 let playerPlay = (num) => {
   switch(num) {
     case 0:
-      console.log('\nPlayer is playing - playerPlay()');
       initializeDeck(); //Initialize Deck stack
-      $('#deck').show();
-      $('.name').show();
       randomCard(johnD); //Draw Initial Cards, 2 for the player and 1 for the dealer
       setTimeout('playerPlay(1)',1000);
       break;
     case 1:
       randomCard(johnD); //Draw Initial Cards, 2 for the player and 1 for the dealer
-      setTimeout('playerPlay(2)',1000);
+      setTimeout('dealerPlay(0)',1000);
       break;
     case 2:
-      randomCard(dealer);
+      randomCard(johnD);
+
       if(johnD.score < 21) {
         $('#hit, #stand').show();
-        console.log('Waiting player move... - playerPlay()');
       }
-      else if(johnD.score === 21){
-        setTimeout('dealerPlay("BJ")',1000);
+      else if(johnD.score > 21) {
+        $('#results').html('DEALER WINS<br><span>PLAYER BUSTS</span>');
+        $('#results').show();
+        $('#restart').show();
+        $('#deck').hide();
+        $('.name').hide();
       }
       else {
-        setTimeout('dealerPlay()',1000);
+        setTimeout('dealerPlay(1)',1000);
       }
       break;
   }
-}
+};
 
 /////////////// Events.js ///////////////
 $('#start').on('click', () => {
   $('#start').hide();// hide start button
-  console.log('\nCLICK detected on button: #start');
-  playerPlay(0,true);
+  $('#deck').show();
+  setTimeout('playerPlay(0)',1000);
 });
 
 $('#stand').on('click', () => {
   $('#hit, #stand').hide();
-  console.log('\nCLICK detected on button: #stand');
-  setTimeout('dealerPlay()',1000);
+  setTimeout('dealerPlay(1)',1000);
 });
 
 $('#restart').on('click', () => {
   $('#restart').hide();// hide start button
   $('#results').hide();
 
-  console.log('\nCLICK detected on button: #restart');
   restart(0);
 });
 
 $('#hit').on('click', () => {
   $('#hit, #stand').hide();
-  console.log('\nCLICK detected on button: #hit');
-  randomCard(johnD);
-  if(johnD.score < 21) {
-    $('#hit, #stand').show();
-    console.log('Waiting player move... - playerPlay()');
-  }
-  else if(johnD.score > 21) {
-    $('#results').html('DEALER WINS<br><span>PLAYER BUSTS</span>');
-    $('#results').show();
-    $('#restart').show();
-    $('#deck').hide();
-    $('.name').hide();
-
-    console.log(`DEALER: ${dealer.score}\nPLAYER: ${johnD.score}\nDEALER WINS - showResults()`);
-  }
-  else {
-    setTimeout('dealerPlay()',1000);
-  }
+  playerPlay(2);
 });
-
-console.log("Click start to play!")
-
